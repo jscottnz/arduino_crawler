@@ -33,6 +33,13 @@ float target[LEGS][JOINTS];
 float transit[LEGS][JOINTS];
 float jointSpeed[LEGS][JOINTS];
 float requestedValue[LEGS][JOINTS];
+const float LEG_UP = 100;
+const float STAND1 = 75;
+const float STAND2 = 76;
+const float STAND3 = 50;
+const float STRETCH1 = 70;
+const float STRETCH2 = 50;
+const float STRETCH3 = 70;
 
 /* Servos --------------------------------------------------------------------*/
 //define 12 servos for 4 legs
@@ -59,8 +66,12 @@ void setup() {
   FlexiTimer2::set(20, servo_service);
   FlexiTimer2::start();
   Serial.println("Servo Service initialized");
- 
-  doCommandSit();
+
+  // get to rest
+  float command[4];
+  makeCommand(command, 1000, 100, 70, 50 );
+  setAllLegs(command);
+  waitAllReached();
   
   Serial.println("Robot initialization Complete");
 }
@@ -73,7 +84,6 @@ void initServos() {
     for (int joint = 0; joint < JOINTS; joint++)
     {
       servo[leg][joint].attach(servo_pin[leg][joint]);
-      delay(100);
       transit[leg][joint] = servo[leg][joint].read();
     }
   }
@@ -106,6 +116,10 @@ void mbStatusCommand(char **param, uint8_t parCnt) {
       Serial.print(" requestedValue: ");
       Serial.println(String(requestedValue[leg][joint]));
     }
+    Serial.print(String("leg: "));
+    Serial.print(String(leg));
+    Serial.print(" checksum: ");
+    Serial.println(String(checkSum(requestedValue[leg][0], requestedValue[leg][1], requestedValue[leg][2])));
   }
 }
 
@@ -118,8 +132,12 @@ void mbDoCommand(char **param, uint8_t parCnt) {
     doCommandSit();
   } else if (command == "stand") {
     doCommandStand();
-  } else if (command == "forward") {
-    doCommandForward();
+  } else if (command == "f") {
+    int steps = 1;
+    if (parCnt == 2) {
+      steps = atoi(param[1]);
+    }
+    doCommandForward(steps);
   } else if (command == "leg" || command == "all") {
     int d = 1;
     int minLeg, maxLeg;
@@ -140,16 +158,16 @@ void mbDoCommand(char **param, uint8_t parCnt) {
     for (int leg = minLeg; leg < maxLeg; leg++)
     {
       float command[4];
-      makeCommand(command, 1000, j0, j1, j2);
+      makeCommand(command, 3000, j0, j1, j2);
 
-      Serial.print(String("leg: "));
+      /*Serial.print(String("leg: "));
       Serial.print(String(leg));
       Serial.print(" j0: ");
       Serial.print(String(j0));
       Serial.print(" j1: ");
       Serial.print(String(j1));
       Serial.print(" j2: ");
-      Serial.println(String(j2));
+      Serial.println(String(j2));*/
       
       setLeg(leg, command);
     }
@@ -181,66 +199,65 @@ void doCommandSit() {
 
 void doCommandStand() {
   float command[4];
-  makeCommand(command, 1000, 100, 90, 50);
+  makeCommand(command, 1000, 100, 90, STAND3);
   setAllLegs(command);
   waitAllReached();
-  makeCommand(command, 1000, 50, 50, 50);
+  makeCommand(command, 1000, STAND1, STAND2, STAND3);
   setAllLegs(command);
   waitAllReached();
 }
 
-void doCommandForward() {
-  float command[4];
+void doCommandForward(int steps) {
+  float command1[4];
+  float command2[4];
+  float command3[4];
+  float command4[4];
   float stdSpeed = 2000;
 
-  // 0
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 0));
-  waitAllReached();
+  // 0.2 step
+  stepTo( makeCommand(command1, stdSpeed, STAND1, STAND2, STAND3),
+          makeCommand(command2, stdSpeed, STAND1, STAND2, STAND3),
+          makeCommand(command3, stdSpeed, STAND1, STAND2, 0),
+          makeCommand(command4, stdSpeed, STAND1, STAND2, STAND3));
 
-  // 1
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 0));
-  waitAllReached();
-
-  // 2
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 50));
-  waitAllReached();
-
-  // 3
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 50));
-  waitAllReached();
+  for(int step = 0; step < steps; step++) {
+    
+    // 0.3 step
+    stepTo( makeCommand(command1, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command2, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command3, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command4, stdSpeed, STAND1, STAND2, 0));
   
-  // 4
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 50));
-  waitAllReached();
-
-  // 5
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 100));
-  waitAllReached();
-
-  // 0
-  setLeg(0, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(1, makeCommand(command, stdSpeed, 100, 70, 50));
-  setLeg(2, makeCommand(command, stdSpeed, 100, 70, 0));
-  setLeg(3, makeCommand(command, stdSpeed, 100, 70, 0));
-  waitAllReached();
+    // 1.2 stretch
+    stepTo( makeCommand(command1, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command2, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command3, stdSpeed, STRETCH1, STRETCH2, STRETCH3),
+            makeCommand(command4, stdSpeed, STAND1, STAND2, 0));
+      
+    // 2.0 pull/stretch
+    pullTo( makeCommand(command1, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command2, stdSpeed, STRETCH1, STRETCH2, STRETCH3),
+            makeCommand(command3, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command4, stdSpeed, STAND1, STAND2, STAND3));
+  
+    // 3.1 step
+    stepTo( makeCommand(command1, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command2, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command3, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command4, stdSpeed, STAND1, STAND2, STAND3));
+      
+    // 4.0 step
+    stepTo( makeCommand(command1, stdSpeed, STRETCH1, STRETCH2, STRETCH3),
+            makeCommand(command2, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command3, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command4, stdSpeed, STAND1, STAND2, STAND3));
+  
+    // 5 pull/stretch
+    pullTo( makeCommand(command1, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command2, stdSpeed, STAND1, STAND2, STAND3),
+            makeCommand(command3, stdSpeed, STAND1, STAND2, 0),
+            makeCommand(command4, stdSpeed, STRETCH1, STRETCH2, STRETCH3));
+  }
 
 }
 
@@ -280,6 +297,88 @@ void mbSetServo(char **param, uint8_t parCnt)
     setLegJoint(leg, joint, pos, 1000);
   }
 }
+
+void stepTo(float *leg0cmd, float *leg1cmd, float *leg2cmd, float *leg3cmd) {
+  doStepMovement(leg0cmd, leg1cmd, leg2cmd, leg3cmd, true);
+}
+
+void pullTo(float *leg0cmd, float *leg1cmd, float *leg2cmd, float *leg3cmd) {
+  doStepMovement(leg0cmd, leg1cmd, leg2cmd, leg3cmd, false);
+}
+
+void doStepMovement(float *leg0cmd, float *leg1cmd, float *leg2cmd, float *leg3cmd, boolean isStep) {
+  float* legCommands[] = { leg0cmd, leg1cmd, leg2cmd, leg3cmd };
+  float liftSpeed = 500;
+
+  if (isStep) {
+    // lift legs
+    for (int leg = 0; leg < LEGS; leg++) {
+      
+      /*Serial.print(String("leg: "));
+      Serial.print(String(leg));
+      Serial.print(" j0: ");
+      Serial.print(String(legCommands[leg][0]));
+      Serial.print(" j1: ");
+      Serial.print(String(legCommands[leg][1]));
+      Serial.print(" j2: ");
+      Serial.println(String(legCommands[leg][2]));*/
+  
+      String commandCheck = checkSum(legCommands[leg][0], legCommands[leg][1], legCommands[leg][2]);
+      String currentCheck = checkSum(requestedValue[leg][0], requestedValue[leg][1], requestedValue[leg][2]);
+  
+      /*Serial.print(String(" checking leg: "));
+      Serial.print(String(leg));
+      Serial.print(String(" current: "));
+      Serial.print(currentCheck);
+      Serial.print(String(" command: "));
+      Serial.println(commandCheck);*/
+  
+      float liftCommand[4];
+      if (commandCheck == currentCheck) {
+        makeCommand(liftCommand, liftSpeed, requestedValue[leg][0], requestedValue[leg][1], requestedValue[leg][2]);
+      } else {
+        Serial.print(String("stepping leg: "));
+        Serial.println(String(leg));
+        
+        makeCommand(liftCommand, liftSpeed, LEG_UP, requestedValue[leg][1], requestedValue[leg][2]);
+      }
+  
+      setLeg(leg, liftCommand);
+    }
+    waitAllReached();
+    // lift done
+
+    // move legs
+    for (int leg = 0; leg < LEGS; leg++) {
+      float moveCommand[4];
+      makeCommand(moveCommand, liftSpeed, requestedValue[leg][0], legCommands[leg][1], legCommands[leg][2]);
+      setLeg(leg, moveCommand);
+    }
+    waitAllReached();
+    
+
+    // place leg
+    for (int leg = 0; leg < LEGS; leg++) {
+      float placeCommand[4];
+      makeCommand(placeCommand, liftSpeed, legCommands[leg][0], legCommands[leg][1], legCommands[leg][2]);
+      setLeg(leg, placeCommand);
+    }
+    waitAllReached();
+  } else {
+    // pull 
+    for (int leg = 0; leg < LEGS; leg++) {
+      float placeCommand[4];
+      makeCommand(placeCommand, legCommands[leg][COMMAND_DURATION], legCommands[leg][0], legCommands[leg][1], legCommands[leg][2]);
+      setLeg(leg, placeCommand);
+    }
+    waitAllReached();
+  }
+}
+
+String checkSum(float a, float b, float c) {
+  return String((10 * a) + (100 * b) + (1000 * c));
+}
+
 
 void setLegs(float **command) {
   for (int leg = 0; leg < LEGS; leg++) {
@@ -326,14 +425,14 @@ void setLegJoint(int leg, int joint, float value, float durationMs) {
   
   jointSpeed[leg][joint] = max(abs(jSpeed), 0.01);
 
-  Serial.print(String("leg: "));
+  /*Serial.print(String("leg: "));
   Serial.print(String(leg));
   Serial.print(" joint: ");
   Serial.print(String(joint));
   Serial.print(" target: ");
   Serial.print(String(targetPostition));
   Serial.print(" speed: ");
-  Serial.println(String(jointSpeed[leg][joint]));
+  Serial.println(String(jointSpeed[leg][joint]));*/
 }
 
 void waitAllReached() {
@@ -413,14 +512,14 @@ void servo_service(void) {
           current = transit[leg][joint] = max(current - jSpeed, jointTarget);
         }
 
-        Serial.print(String("TRANSIT leg: "));
+        /*Serial.print(String("TRANSIT leg: "));
         Serial.print(String(leg));
         Serial.print(" joint: ");
         Serial.print(String(joint));
         Serial.print(" target: ");
         Serial.print(String(jointTarget));
         Serial.print(" current: ");
-        Serial.println(String(current));
+        Serial.println(String(current));*/
         
         servo[leg][joint].write(current);
       } 
